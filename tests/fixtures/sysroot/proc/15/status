@@ -1,0 +1,2 @@
+Name:	kworker/2:1
+Cpus_allowed_list:	2-3

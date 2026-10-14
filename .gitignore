@@ -1,0 +1,10 @@
+# Rust build output. Cargo.lock is deliberately *not* ignored: Isolera is a
+# binary, and a pinned lockfile is part of reproducing a node's toolchain.
+/target
+
+# Finder metadata; this repository is developed on macOS.
+.DS_Store
+
+# Editor swap and backup files.
+*.swp
+*~

@@ -1,0 +1,5 @@
+# Written by Isolera's fixture generator; see tests/fixtures/README.md.
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+
+GRUB_CMDLINE_LINUX="quiet splash"

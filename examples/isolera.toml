@@ -1,0 +1,74 @@
+# Isolera plan - example configuration for a low-latency trading node.
+#
+# Copy to /etc/isolera.toml and edit. Every value here is validated before
+# anything is written; unknown keys are rejected rather than ignored.
+
+[node]
+name = "matching-engine-01"
+role = "matching-engine"
+tags = ["colo-ld4", "prod"]
+
+# Which cores belong to the strategy, and how the kernel must treat them.
+[isolation]
+cpus = "6-9"            # isolated application cores (SMT siblings offlined below)
+smt = false             # offline the hyperthread sibling of every isolated core
+governor = "performance"
+nohz_full = true        # stop the scheduler tick on the isolated cores
+rcu_nocbs = true        # move RCU callbacks off the isolated cores
+rcu_nocb_poll = false   # also add flag-only rcu_nocb_poll (burns cycles to poll)
+managed_irq = true      # keep managed IRQs away from isolated cores
+domain = false          # set true to also isolate scheduler domains
+idle = "poll"           # remove C-state exit latency on the isolated cores
+high_res_timers = true
+skew_tick = 1           # spread the timer interrupt across CPUs
+housekeeping = "0-5"
+
+# Interrupt routing. Patterns are fnmatch-style globs matched against the
+# name in /proc/interrupts.
+[irq]
+exclude = ["nvme.*", "eth0-rx-*", "eth0-tx-*"]
+ignore = ["IR-PCI-MSI.*", "spurious"]
+precedence = "override_wins"
+housekeeping = "0-5"
+
+# Exact matches win over the exclusion list above.
+[irq.overrides]
+"matching-engine-*" = "6,7"
+"feed-handler-*" = "8,9"
+
+# Boot parameters Isolera manages in addition to the isolation ones.
+[kernel]
+cmdline_extra = ["transparent_hugepage=never", "audit=0", "processor.max_cstate=0"]
+
+# Sysctls may be written as dotted names or as full procfs paths.
+[kernel.sysctls]
+"kernel.watchdog" = "0"
+"kernel.nmi_watchdog" = "0"
+"vm.stat_interval" = "10"
+"kernel.sched_rt_runtime_us" = "-1"
+
+[grub]
+file = "/etc/default/grub"
+cmdline_variable = "GRUB_CMDLINE_LINUX"
+backup_dir = "/var/lib/isolera/backups"
+regenerate = "update-grub"
+
+[grub.variables]
+GRUB_TIMEOUT = "1"
+GRUB_RECORDFAIL_TIMEOUT = "1"
+
+[rt]
+fifo_priority = 80
+pin_kernel_threads = true
+keep = ["kthreadd", "migration/*"]
+rt_runtime_us = -1
+
+[verify]
+budget_us = 80          # fail verification above 80 us of jitter
+interval_us = 200
+duration_s = 300
+irq_rate_per_second = 1.0
+
+[paths]
+backup_dir = "/var/lib/isolera/backups"
+state_dir = "/var/lib/isolera/state"

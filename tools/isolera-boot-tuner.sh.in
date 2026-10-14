@@ -1,0 +1,87 @@
+#!/bin/sh
+# Re-assert the runtime half of an Isolera plan at boot.
+#
+# GRUB carries the boot parameters, but a reboot resets everything that lives in
+# /proc and /sys: sysctls, interrupt affinity, cpufreq governors and any SMT
+# sibling that came back online. This script runs after the boot has settled and
+# replays exactly those parts, driving the same plan the operator approved:
+#
+#   isolera apply --yes
+#
+# `apply` is idempotent - it writes only what differs - so running it at every
+# boot is safe, and its journal keeps the previous values for `isolera rollback`.
+#
+# Placeholders are substituted by the installer:
+#   @BINDIR@   directory holding BIN and isolera   (e.g. /usr/local/bin)
+#   @CONFIG@   path of the plan                    (e.g. /etc/isolera.toml)
+#   @DELAY@    seconds to wait for devices to appear (default 20)
+#
+# Install as /usr/local/sbin/isolera-boot-tuner, then enable it with systemd:
+#
+#   [Unit]
+#   Description=Isolera boot tuner
+#   After=network-pre.target
+#   Before=latency-critical.target
+#
+#   [Service]
+#   Type=oneshot
+#   ExecStart=/usr/local/sbin/isolera-boot-tuner
+#   RemainAfterExit=yes
+#
+#   [Install]
+#   WantedBy=multi-user.target
+set -eu
+
+BIN=@BINDIR@/isolera
+CONFIG=@CONFIG@
+DELAY=${ISOLERA_BOOT_DELAY:-@DELAY@}
+
+log() {
+    echo "isolera-boot-tuner: $*"
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+    log "must run as root"
+    exit 1
+fi
+
+if [ ! -x "$BIN" ]; then
+    log "$BIN is missing or not executable"
+    exit 1
+fi
+
+if [ ! -r "$CONFIG" ]; then
+    log "$CONFIG is missing; nothing to do"
+    exit 0
+fi
+
+# Devices appear asynchronously: an IRQ that does not exist yet would be reported
+# as unsteerable, and the run would have to be repeated by hand.
+if [ "$DELAY" -gt 0 ]; then
+    log "waiting ${DELAY}s for devices to settle"
+    sleep "$DELAY"
+fi
+
+# A plan that no longer validates must not be applied blindly: `plan` exits
+# non-zero and the boot continues with the previous (working) tuning.
+log "checking $CONFIG"
+if ! "$BIN" --config "$CONFIG" plan --json >/var/run/isolera-plan.json 2>&1; then
+    log "the plan did not validate; leaving the node untouched"
+    cat /var/run/isolera-plan.json >&2
+    exit 1
+fi
+
+log "applying the plan"
+"$BIN" --config "$CONFIG" --quiet apply --yes
+
+# Kernel threads move between boots, so the pinning work list is regenerated too.
+# It is a list of `taskset` calls, not a sysroot write, so it has to be run.
+if "$BIN" --config "$CONFIG" --quiet pin --json >/var/run/isolera-pin.json 2>&1; then
+    moves=$(grep -c '"status":"dry-run"' /var/run/isolera-pin.json || true)
+    if [ "${moves:-0}" -gt 0 ]; then
+        log "moving $moves kernel thread(s) off the trading cores"
+        "$BIN" --config "$CONFIG" --quiet pin --apply --yes
+    fi
+fi
+
+log "done; run 'isolera verify' after the strategy has been quiesced"

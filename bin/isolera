@@ -1,0 +1,31 @@
+#!/bin/sh
+# Isolera launcher.
+#
+# On a trading node the binary lives under /opt or /usr/local; during development
+# it lives in target/. This wrapper finds it either way, so the same command works
+# from a checkout, a package and a rescue shell.
+#
+# It deliberately does nothing else: no configuration discovery, no elevation, no
+# argument rewriting. `isolera --help` must describe the tool, not this script.
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+for candidate in \
+    "${ISOLERA_BIN:-}" \
+    "$self_dir/../target/release/isolera" \
+    "$self_dir/../target/debug/isolera" \
+    "$self_dir/isolera-bin"
+do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        exec "$candidate" "$@"
+    fi
+done
+
+if command -v isolera >/dev/null 2>&1; then
+    exec isolera "$@"
+fi
+
+echo "isolera: cannot find the binary." >&2
+echo "build it with 'cargo build --release', or set ISOLERA_BIN=/path/to/isolera" >&2
+exit 127

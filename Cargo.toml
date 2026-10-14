@@ -1,0 +1,45 @@
+[package]
+name = "isolera"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Deterministic Linux CPU-core isolation for low-latency trading nodes"
+license = "MIT"
+authors = ["Frankline Misango Oyolo"]
+repository = "https://github.com/FranklineMisango/isolera"
+readme = "README.md"
+keywords = ["hft", "latency", "cpu-isolation", "isolcpus", "realtime"]
+categories = ["command-line-utilities", "os::linux-apis"]
+
+# Isolera is deliberately dependency-free: the standard library is the entire
+# supply chain, which matters for a tool that runs as root on a production
+# trading node.
+[dependencies]
+
+[[bin]]
+name = "isolera"
+path = "src/main.rs"
+
+[lib]
+name = "isolera"
+path = "src/lib.rs"
+
+# The fixture builder is an example, not a binary: it is a development tool, so
+# `cargo build`/`cargo install` never produce it, while `cargo test` still compiles
+# it - which is what keeps it honest.
+[[example]]
+name = "make_fixture"
+path = "examples/make_fixture.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 1
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,45 @@
+# Isolera plan for tests/fixtures/sysroot - a four-CPU SMT node.
+#
+# Used by tests/cli.rs, which drives the built binary against the fixture tree
+# with `--root tests/fixtures/sysroot`.  Keep this in step with the fixture:
+# src/testing.rs builds the same plan in memory for the unit tests.
+
+[node]
+name = "fixture-node"
+role = "matching-engine"
+
+[isolation]
+cpus = "2,3"            # the trading cores (both hyperthreads of core 1)
+housekeeping = "0,1"    # the other physical core
+governor = "performance"
+nohz_full = true
+rcu_nocbs = true
+managed_irq = true
+
+[irq]
+exclude = ["nvme*"]
+ignore = ["eth*"]
+
+[irq.overrides]
+"matching-engine-*" = "2,3"
+
+[kernel.sysctls]
+"kernel.watchdog" = "0"
+"kernel.nmi_watchdog" = "0"
+
+[grub]
+file = "/etc/default/grub"
+cmdline_variable = "GRUB_CMDLINE_LINUX"
+
+[grub.variables]
+GRUB_TIMEOUT = "1"
+
+[rt]
+pin_kernel_threads = true
+keep = ["kthreadd"]
+rt_runtime_us = -1
+
+[verify]
+budget_us = 80
+interval_us = 200
+duration_s = 1

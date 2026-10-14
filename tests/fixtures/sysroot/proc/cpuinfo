@@ -1,0 +1,23 @@
+processor	: 0
+model name	: Xeon Test
+physical id	: 0
+core id		: 0
+cpu cores	: 2
+
+processor	: 1
+model name	: Xeon Test
+physical id	: 0
+core id		: 0
+cpu cores	: 2
+
+processor	: 2
+model name	: Xeon Test
+physical id	: 0
+core id		: 1
+cpu cores	: 2
+
+processor	: 3
+model name	: Xeon Test
+physical id	: 0
+core id		: 1
+cpu cores	: 2
